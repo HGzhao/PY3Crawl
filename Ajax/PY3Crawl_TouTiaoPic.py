@@ -1,64 +1,75 @@
-import os
 import requests
 from urllib.parse import urlencode
+from requests import codes
+import os
 from hashlib import md5
 from multiprocessing.pool import Pool
-
-GROUP_START = 1
-GROUP_END = 5
+import re
 
 
 def get_page(offset):
     params = {
+        'aid': '24',
         'offset': offset,
         'format': 'json',
-        'keyword': '街拍',
+        #'keyword': '街拍',
         'autoload': 'true',
         'count': '20',
-        'cur_tab': '3',
-        'from': 'gallery',
+        'cur_tab': '1',
+        'from': 'search_tab',
+        'pd': 'synthesis'
     }
-    url = 'https://www.toutiao.com/search_content/?' + urlencode(params)
+    base_url = 'https://www.toutiao.com/api/search/content/?keyword=%E8%A1%97%E6%8B%8D'
+    url = base_url + urlencode(params)
     try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            return response.json()
+        resp = requests.get(url)
+        print(url)
+        if 200  == resp.status_code:
+            print(resp.json())
+            return resp.json()
     except requests.ConnectionError:
         return None
 
 
 def get_images(json):
-    data = json.get('data')
-    if data:
+    if json.get('data'):
+        data = json.get('data')
         for item in data:
-            # print(item)
-            image_list = item.get('image_list')
+            if item.get('cell_type') is not None:
+                continue
             title = item.get('title')
-            # print(image_list)
-            if image_list:
-                for image in image_list:
-                    yield {
-                        'image': image.get('url'),
-                        'title': title
-                    }
+            images = item.get('image_list')
+            for image in images:
+                origin_image = re.sub("list", "origin", image.get('url'))
+                yield {
+                    'image':  origin_image,
+                    # 'iamge': image.get('url'),
+                    'title': title
+                }
 
+print('succ')
 
 def save_image(item):
-    if not os.path.exists(item.get('title')):
-        os.mkdir(item.get('title'))
+    img_path = 'img' + os.path.sep + item.get('title')
+    print('succ2')
+    if not os.path.exists(img_path):
+        os.makedirs(img_path)
     try:
-        local_image_url = item.get('image')
-        new_image_url = local_image_url.replace('list','large')
-        response = requests.get('http:' + new_image_url)
-        if response.status_code == 200:
-            file_path = '{0}/{1}.{2}'.format(item.get('title'), md5(response.content).hexdigest(), 'jpg')
+        resp = requests.get(item.get('image'))
+        if codes.ok == resp.status_code:
+            file_path = img_path + os.path.sep + '{file_name}.{file_suffix}'.format(
+                file_name=md5(resp.content).hexdigest(),
+                file_suffix='jpg')
             if not os.path.exists(file_path):
-                with open(file_path, 'wb')as f:
-                    f.write(response.content)
+                print('succ3')
+                with open(file_path, 'wb') as f:
+                    f.write(resp.content)
+                print('Downloaded image path is %s' % file_path)
+                print('succ4')
             else:
                 print('Already Downloaded', file_path)
     except requests.ConnectionError:
-        print('Failed to save image')
+        print('Failed to Save Image，item %s' % item)
 
 
 def main(offset):
@@ -67,6 +78,9 @@ def main(offset):
         print(item)
         save_image(item)
 
+
+GROUP_START = 0
+GROUP_END = 7
 
 if __name__ == '__main__':
     pool = Pool()
