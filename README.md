@@ -9,4 +9,4 @@ this is a readme of PY3Crawl
 
 ## License
 
-[Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0)
+[MIT](https://opensource.org/licenses/MIT)
